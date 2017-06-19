@@ -3,4 +3,4 @@
 Laravel 项目 Demo 库。
 
 1. [Links](./links/)
-2. [Blogs](./blog/)
+2. [Blog](./blog/)
