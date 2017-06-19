@@ -12,9 +12,9 @@
 composer global require "laravel/installer"
 ```
 
-## 创建项目[^注一]
+## 创建项目[注一][注一]
 
-[^注一]: 项目数据库名使用 `laravel-links`，采用 `utf8mb4_unicode_ci` 校对。修改 MySQL 配置文件 `mysql.ini`（Windows 环境下） 将 `default-storage-engine` 项设置为 `InnoDB`——表示新建数据库表的默认存储引擎使用 InnoDB。
+[注一]: 项目数据库名使用 `laravel-links`，采用 `utf8mb4_unicode_ci` 校对。修改 MySQL 配置文件 `mysql.ini`（Windows 环境下） 将 `default-storage-engine` 项设置为 `InnoDB`——表示新建数据库表的默认存储引擎使用 InnoDB。
 
 ```
 laravel new links
@@ -26,9 +26,9 @@ laravel new links
 
 ## 构建认证系统
 
-执行命令：`php artisan make:auth` 和 `php artisan migrate`。[^注二]
+执行命令：`php artisan make:auth` 和 `php artisan migrate`。[注二][注二]
 
-[^注二]: 对于 Laravel 5.3- 版本，需要修改文件 `resource/views/layouts/app.blade.php`。将引入的 JavaScript 和 CSS 文件的地址改为 `<link href="{{ asset('css/app.css') }}" rel="stylesheet">`
+[注二]: 对于 Laravel 5.3- 版本，需要修改文件 `resource/views/layouts/app.blade.php`。将引入的 JavaScript 和 CSS 文件的地址改为 `<link href="{{ asset('css/app.css') }}" rel="stylesheet">`
  和 `<script src="{{ asset('js/app.js') }}"></script>`。
 
 ```
@@ -57,9 +57,9 @@ php artisan make:migration create_links_table --create=links
 ```
 Schema::create('links', function (Blueprint $table) {
       $table->increments('id');
-      $table->string('title');
+      $table->string('title')->unique();
       $table->string('url')->unique();
-      $table->text('description');
+      $table->text('description')->nullable();
       $table->timestamps();
 });
 ```
@@ -109,9 +109,9 @@ public function run()
 $this->call(LinksTableSeeder::class);
 ```
 
-执行种子文件[^注三]
+执行种子文件[注三][注三]
 
-[^注三]: 也可以在迁移时执行种子文件，命令是 `php artisan migrate --seed`。
+[注三]: 也可以在迁移时执行种子文件，命令是 `php artisan migrate --seed`。
 
 ```
 php artisan db:seed
@@ -127,7 +127,7 @@ use Illuminate\Http\Request;
 
 Route::group(['prefix' => 'links'], function () {
     Route::get('', function () {
-        $links = Link::all();
+        $links = Link::paginate(50);
         return view('links.index', compact('links'));
     });
     Route::get('create', function () {
@@ -137,7 +137,7 @@ Route::group(['prefix' => 'links'], function () {
         $validator = Validator::make($request->all(), [
             'title' => 'required|max:255',
             'url' => 'required|max:255',
-            'description' => 'nullable|max:255',
+            'description' => 'present|max:255',
         ]);
         if ($validator->fails()) {
             return back()
@@ -161,25 +161,41 @@ Route::group(['prefix' => 'links'], function () {
 ```
 @extends('layouts.app')
 
-@section('content')
-<div class="container">
-    <div class="row">
-        <div class="col-md-8 col-md-offset-2">
-            <div class="panel panel-default">
-                <div class="panel-heading"><h1>Links Sharing</h1></div>
+@push('styles')
+    <style>
+        .navbar {
+            margin-bottom: 20px;
+        }
 
+        .panel-body .thumbnail a {
+            display: block;
+        }
+    </style>
+@endpush
+
+@section('content')
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="panel panel-default">
+                <div class="panel-heading text-center">
+                    <span>采集<a class="btn btn-primary btn-xs pull-right" href="{{ url('links/create') }}">添加</a></span>
+                </div>
                 <div class="panel-body">
                     <div class="row">
                         @foreach ($links as $link)
-                            <div class="col-sm-6 col-md-4">
+                            <div class="col-sm-4 col-md-3">
                                 <div class="thumbnail">
-                                    <div class="caption">
-                                        <h2><a href="{{ $link->url }}" target="_blank">{{ $link->title }}</a></h3>
-                                        <p>{{ $link->description  }}</p>
+                                    <div class="caption text-center">
+                                        <h4><a href="{{ $link->url }}" target="_blank">{{ $link->title }}</a></h3>
+                                        <p>{{ $link->description }}</h4>
                                     </div>
                                 </div>
                             </div>
                         @endforeach
+                        <div class="col-md-12">
+                            {{ $links->links() }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -194,11 +210,17 @@ Route::group(['prefix' => 'links'], function () {
 ```
 @extends('layouts.app')
 
+@push('styles')
+    <style>
+        .navbar {
+            margin-bottom: 20px;
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="container">
         <div class="row">
-            <h1>Submit a link</h1>
-
             @if (count($errors) > 0)
                 <div class="alert alert-danger">
                     <ul>
@@ -208,23 +230,29 @@ Route::group(['prefix' => 'links'], function () {
                     </ul>
                 </div>
             @endif
-
-            <form action="{{ url('links/store') }}" method="post">
-                {{ csrf_field() }}
-                <div class="form-group">
-                    <label for="title">标题</label>
-                    <input type="text" class="form-control" id="title" name="title" placeholder="Title" value="{{ old('title') }}">
+            <div class="col-md-8 col-md-offset-2">
+                <div class="panel panel-default">
+                    <div class="panel-heading">新的采集</div>
+                    <div class="panel-body">
+                        <form action="{{ url('links/store') }}" method="post">
+                            {{ csrf_field() }}
+                            <div class="form-group">
+                                <label for="title">标题</label>
+                                <input type="text" class="form-control" id="title" name="title" value="{{ old('title') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="url">URL</label>
+                                <input type="text" class="form-control" id="url" name="url" value="{{ old('url') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="description">介绍</label>
+                                <textarea class="form-control" id="description" name="description">{{ old('description') }}</textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">创建</button>
+                        </form>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="url">URL</label>
-                    <input type="text" class="form-control" id="url" name="url" placeholder="URL" value="{{ old('url') }}">
-                </div>
-                <div class="form-group">
-                    <label for="description">介绍</label>
-                    <textarea class="form-control" id="description" name="description" placeholder="description">{{ old('description') }}</textarea>
-                </div>
-                <button type="submit" class="btn btn-default">创建</button>
-            </form>
+            </div>
         </div>
     </div>
 @endsection
